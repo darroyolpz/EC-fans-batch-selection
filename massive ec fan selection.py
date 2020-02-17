@@ -4,7 +4,7 @@ from pandas import ExcelWriter
 
 url = "http://fanselect.net:8079/FSWebService"
 user_ws, pass_ws = 'ZAFS58738', '7ary17'
-power_factor = 1.039 # At least 1.039 because of the tolerance
+power_factor = 1.04
 
 # Get all the possible fans
 all_results = False
@@ -36,15 +36,15 @@ print('\n')
 
 # Pandas import
 # Open the quotation file
-excel_file = 'EC_FANS.xlsx'
-df = pd.read_excel(excel_file, dtype={'Item': str, 'Gross price': float})
+excel_file = 'EC_FANS_bluefin.xlsx'
+df = pd.read_excel(excel_file, usecols= ['Article no', 'ID', 'Gross price'], dtype={'Article no': str, 'Gross price': float})
 
 print('List of fans:')
 print(df.head())
 print('\n')
 
 # Open the quotation file
-excel_file = 'DATA_INPUT.xlsx'
+excel_file = 'DATA_INPUT_bluefin.xlsx'
 df_data = pd.read_excel(excel_file)
 # We need to know the W, not the kW
 df_data['Consump. kW'] = 1000*df_data['Consump. kW']
@@ -71,6 +71,7 @@ start_time = time.time()
 
 for j in range(len(df_data['Line'])):
 	line = df_data['Line'].iloc[j]
+	ref = df_data['Ref'].iloc[j]
 	ahu = df_data['AHU'].iloc[j]
 	height = df_data['Height'].iloc[j]
 	width = df_data['Width'].iloc[j]
@@ -78,22 +79,21 @@ for j in range(len(df_data['Line'])):
 	psf = df_data['Static Press.'].iloc[j]
 	consump = df_data['Consump. kW'].iloc[j]
 	original_no_fans = df_data['No Fans'].iloc[j]
-	gross = df_data['Gross price'].iloc[j]
+	old_gross = df_data['Gross price'].iloc[j]
 	old_fan = df_data['ID'].iloc[j]
-	old_gross = original_no_fans*gross
 	file_name = df_data['File name'].iloc[j]
 
 	time.sleep(1)
 
 	# Loop for fans on each number of line
-	for i in range(len(df['Item'])):
+	for i in range(len(df['Article no'])):
 		max_array = original_no_fans + 1
 		# Check several fan configuration
 		for n in range(1, max_array):
 
 			# Set values
-			article_no = df['Item'].iloc[i]
-			gross_price = df['Gross price'].iloc[i]
+			article_no = df['Article no'].iloc[i]
+			gross_price = df['Gross price'].iloc[i] # New fan
 			print('File name:', file_name)
 			print('Line:', line)
 
@@ -134,7 +134,6 @@ for j in range(len(df_data['Line'])):
 					n_actual = get_response(fan_dict)['ERP_N_ACTUAL']
 					n_stat = get_response(fan_dict)['ERP_N_STAT']
 					n_target = get_response(fan_dict)['ERP_N_TRAGET']
-					za_sfp = get_response(fan_dict)['ZA_SFP']
 					total_gross = no_fans*gross_price
 
 					print('Number of line:', line)
@@ -144,12 +143,10 @@ for j in range(len(df_data['Line'])):
 					print('Eff. N_stat:', n_stat)
 					print('Eff. N_target:', n_target)
 					print('Number of fans:', no_fans)
-					print('SFP:', za_sfp)
 					print('Total gross:', total_gross)
 					print('\n')
 
-					inner_list.append([file_name, line, ahu, height, width, qv, psf, old_fan, consump, power_input, n_stat,
-						n_target, article_no, no_fans, za_sfp, old_gross, total_gross])
+					inner_list.append([line, ref, ahu, height, width, qv, psf, power_input, n_stat, n_target, article_no, no_fans, old_fan, old_gross, file_name, total_gross])
 
 					# Stop the loop
 					print('Loop stopping!')
@@ -185,9 +182,13 @@ for j in range(len(df_data['Line'])):
 	inner_list = []
 
 # Save all the results to a new dataframe
-col = ['File name','Line', 'AHU', 'Height', 'Width', 'Airflow', 'Static Press.','Old fan', 'Old consump.', 'Consump. W',
-'N_stat', 'N_target', 'Article no', 'No fans', 'SFP', 'Old Gross', 'Total Gross']
+col = ['Line', 'Ref', 'AHU', 'Height', 'Width', 'Airflow', 'Static Press.', 'Consump. W', 'N_stat', 'N_target',
+		'Article no', 'No fans','Old fan', 'Old Gross', 'File name', 'Total Gross']
 result = pd.DataFrame(outter_list, columns = col)
+
+result = pd.merge(result, df, on='Article no')
+result.drop(['Gross price'], axis=1, inplace=True)
+result['Diff'] = result['Old Gross'] - result['Total Gross']
 
 # Export to Excel
 name = 'Results.xlsx'
