@@ -1,9 +1,14 @@
-import json, requests, time
+
+import json, requests, time, os
 import pandas as pd
 from pandas import ExcelWriter
 
+# Access data
 url = "http://fanselect.net:8079/FSWebService"
-user_ws, pass_ws = 'ZAFS58738', '7ary17'
+user_ws = os.environ.get('USER_ZA')
+pass_ws = os.environ.get('PASS_ZA')
+
+# Threshold for power factor
 power_factor = 1.04
 
 # Get all the possible fans
